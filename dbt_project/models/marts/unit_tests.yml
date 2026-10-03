@@ -1,0 +1,25 @@
+unit_tests:
+  - name: rfm_scores_break_ties_by_customer_key
+    model: mart_customer_rfm
+    given:
+      - input: ref('fact_sales')
+        rows:
+          - {customer_key: c4, order_id: o4, order_date_key: 20170101, sales: 100}
+          - {customer_key: c3, order_id: o3, order_date_key: 20170101, sales: 100}
+          - {customer_key: c2, order_id: o2, order_date_key: 20170101, sales: 100}
+          - {customer_key: c1, order_id: o1, order_date_key: 20170101, sales: 100}
+      - input: ref('dim_date')
+        rows:
+          - {date_key: 20170101, date_day: '2017-01-01'}
+      - input: ref('dim_customer')
+        rows:
+          - {customer_key: c1, customer_name: A}
+          - {customer_key: c2, customer_name: B}
+          - {customer_key: c3, customer_name: C}
+          - {customer_key: c4, customer_name: D}
+    expect:
+      rows:
+        - {customer_key: c1, r_score: 1, f_score: 1, m_score: 1}
+        - {customer_key: c2, r_score: 2, f_score: 2, m_score: 2}
+        - {customer_key: c3, r_score: 3, f_score: 3, m_score: 3}
+        - {customer_key: c4, r_score: 4, f_score: 4, m_score: 4}

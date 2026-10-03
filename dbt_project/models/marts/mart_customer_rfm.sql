@@ -23,9 +23,10 @@ scored as (
     select
         c.*,
         date_diff('day', c.last_order_date, a.as_of_date)   as recency_days,
-        ntile(4) over (order by date_diff('day', c.last_order_date, a.as_of_date) desc) as r_score,
-        ntile(4) over (order by c.frequency)                as f_score,
-        ntile(4) over (order by c.monetary)                 as m_score
+        -- customer_key breaks ties, so the scores are the same on every run
+        ntile(4) over (order by date_diff('day', c.last_order_date, a.as_of_date) desc, c.customer_key) as r_score,
+        ntile(4) over (order by c.frequency, c.customer_key)                as f_score,
+        ntile(4) over (order by c.monetary, c.customer_key)                 as m_score
     from per_customer c
     cross join as_of a
 
