@@ -82,7 +82,7 @@ def superstore_pipeline():
         return (
             "$PIPELINE_BIN/dbt test --select silver tag:silver_reconciliation --indirect-selection cautious"
             " && $PIPELINE_BIN/python $PROJECT_DIR/scripts/pipeline_ops.py check-rejects"
-            ' --db "$SUPERSTORE_DB" --threshold "$REJECT_THRESHOLD"'
+            ' --db "$SUPERSTORE_DB" --batch-id "$BATCH_ID" --threshold "$REJECT_THRESHOLD"'
         )
 
     @shell()

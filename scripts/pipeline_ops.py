@@ -23,12 +23,16 @@ def reject_rate_exceeded(rejected, total, threshold):
     return rejected / total > threshold
 
 
-def reject_stats(db_path):
+def batch_counts(con, batch_id):
+    loaded = count_rows(con, "bronze", "raw_superstore", "_batch_id = ?", [batch_id])
+    rejected = count_rows(con, "silver", "silver_rejects", "_batch_id = ?", [batch_id])
+    return loaded, rejected
+
+
+def reject_stats(db_path, batch_id):
     con = duckdb.connect(str(db_path), read_only=True)
     try:
-        total = count_rows(con, "bronze", "raw_superstore")
-        rejected = count_rows(con, "silver", "silver_rejects")
-        return total, rejected
+        return batch_counts(con, batch_id)
     finally:
         con.close()
 
@@ -57,8 +61,7 @@ def record_run(db_path, batch_id, status, started_at, failed_task=None):
             )
             """
         )
-        loaded = count_rows(con, "bronze", "raw_superstore", "_batch_id = ?", [batch_id])
-        rejected = count_rows(con, "silver", "silver_rejects")
+        loaded, rejected = batch_counts(con, batch_id)
         finished = datetime.now(timezone.utc).replace(tzinfo=None)
         seconds = (finished - parse_time(started_at)).total_seconds()
         con.execute(
@@ -75,6 +78,7 @@ def main(argv=None):
 
     check = sub.add_parser("check-rejects", help="fail when too many rows were rejected")
     check.add_argument("--db", required=True)
+    check.add_argument("--batch-id", required=True)
     check.add_argument("--threshold", type=float, default=0.02)
 
     log = sub.add_parser("log", help="write one row to ops.pipeline_run_log")
@@ -87,9 +91,9 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     if args.command == "check-rejects":
-        total, rejected = reject_stats(args.db)
+        total, rejected = reject_stats(args.db, args.batch_id)
         rate = rejected / total if total else 0
-        print(f"rejected {rejected} of {total} rows ({rate:.2%}), limit {args.threshold:.2%}")
+        print(f"batch {args.batch_id}: rejected {rejected} of {total} loaded rows ({rate:.2%}), limit {args.threshold:.2%}")
         return 1 if reject_rate_exceeded(rejected, total, args.threshold) else 0
 
     record_run(args.db, args.batch_id, args.status, args.started_at, args.failed_task)

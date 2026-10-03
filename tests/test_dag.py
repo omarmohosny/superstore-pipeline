@@ -31,3 +31,8 @@ def test_bronze_tests_do_not_pull_in_silver_checks(dag):
     # the reconcile test depends on the source, so without "cautious" it runs before silver exists
     command = dag.get_task("test_bronze").python_callable()
     assert "--indirect-selection cautious" in command
+
+
+def test_reject_gate_judges_the_current_batch(dag):
+    command = dag.get_task("test_silver").python_callable()
+    assert '--batch-id "$BATCH_ID"' in command

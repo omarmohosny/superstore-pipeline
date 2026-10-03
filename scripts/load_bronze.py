@@ -40,11 +40,27 @@ def read_source(path):
     return df
 
 
+def to_date(col):
+    if pd.api.types.is_datetime64_any_dtype(col):
+        return col
+    # Excel serial numbers where the cell is a number, plain text parsing otherwise;
+    # anything unreadable becomes null and gets rejected in silver
+    serial = pd.to_numeric(col, errors="coerce")
+    from_serial = pd.to_datetime(serial, unit="D", origin="1899-12-30")
+    from_text = pd.to_datetime(col.where(serial.isna()), errors="coerce")
+    return from_serial.fillna(from_text)
+
+
 def fix_dates(df):
-    # some exports keep dates as plain Excel serial numbers
     for col in DATE_COLUMNS:
-        if pd.api.types.is_numeric_dtype(df[col]):
-            df[col] = pd.to_datetime(df[col], unit="D", origin="1899-12-30")
+        df[col] = to_date(df[col])
+    return df
+
+
+def fix_postal_codes(df):
+    # Excel stores them as numbers, so 06824 arrives as 6824
+    codes = df["postal_code"].str.strip()
+    df["postal_code"] = codes.mask(codes.str.fullmatch(r"\d{1,4}").fillna(False), codes.str.zfill(5))
     return df
 
 
@@ -72,7 +88,7 @@ def count_rows(con):
 
 
 def load_bronze(xlsx_path, db_path, batch_id):
-    df = fix_dates(read_source(xlsx_path))
+    df = fix_postal_codes(fix_dates(read_source(xlsx_path)))
     check_rows(df)
 
     df["_batch_id"] = batch_id

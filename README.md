@@ -56,6 +56,9 @@ bash scripts/in_container.sh '$PIPELINE_BIN/dbt build'
 
 ## Notes
 
+- Bronze is append-only by `Row ID`. The reject gate judges only the rows each run loaded. If you correct a row that is already loaded, delete it from bronze first so the next run picks it up again:
+  `delete from bronze.raw_superstore where row_id in (...)`.
+
 - DuckDB has one writer, so the tasks run one after another and only one DAG run is active at a time.
 - The passwords and secrets in `docker-compose.yaml` are for local use only.
 - The data is static, so the snapshots show one version per customer and product until the source changes.

@@ -122,3 +122,22 @@ def test_header_only_file_raises(tmp_path, db):
     src = write_xlsx(tmp_path, make_rows([1]).iloc[0:0])
     with pytest.raises(ValueError, match="no rows"):
         lb.load_bronze(src, db, "b1")
+
+
+def test_numeric_postal_code_gets_its_leading_zero_back(tmp_path, db):
+    df = make_rows([1])
+    df["Postal Code"] = 6824  # Excel stores it as a number, so the zero is already gone
+    lb.load_bronze(write_xlsx(tmp_path, df), db, "b1")
+    assert query(db, "select postal_code from bronze.raw_superstore") == [("06824",)]
+
+
+def test_text_in_a_date_column_becomes_null_and_later_loads_still_work(tmp_path, db):
+    df = make_rows([1, 2]).astype({"Order Date": object})
+    df.loc[0, "Order Date"] = "TBD"
+    df.loc[1, "Order Date"] = 42682
+    lb.load_bronze(write_xlsx(tmp_path, df), db, "b1")
+    rows = query(db, "select row_id, cast(order_date as date) from bronze.raw_superstore order by row_id")
+    assert rows == [(1, None), (2, dt.date(2016, 11, 8))]
+
+    bigger = write_xlsx(tmp_path, make_rows([1, 2, 3]), name="Superstore2.xlsx")
+    assert lb.load_bronze(bigger, db, "b2") == 1
