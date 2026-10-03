@@ -2,7 +2,7 @@ import os
 
 import pytest
 
-pytest.importorskip("airflow")
+pytest.importorskip("airflow.models")
 from airflow.models import DagBag  # noqa: E402
 
 EXPECTED_ORDER = [
