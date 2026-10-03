@@ -1,0 +1,16 @@
+snapshots:
+  - name: snap_customer
+    relation: ref('silver_customers')
+    config:
+      schema: silver
+      unique_key: customer_id
+      strategy: check
+      check_cols: [customer_name, segment]
+
+  - name: snap_product
+    relation: ref('silver_products')
+    config:
+      schema: silver
+      unique_key: product_id
+      strategy: check
+      check_cols: [product_name, category, sub_category]
