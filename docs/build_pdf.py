@@ -151,6 +151,26 @@ def code(text):
     return Preformatted(text.strip("\n"), S["code"])
 
 
+def prepare_shots():
+    """Crops the raw screenshots to the parts worth reading at page width (originals stay untouched)."""
+    from PIL import Image
+
+    out = SHOTS / "cropped"
+    out.mkdir(exist_ok=True)
+    def crop(src, box, dst):
+        Image.open(SHOTS / src).convert("RGB").crop(box).save(out / dst)
+
+    crop("airflow_graph.png", (95, 475, 1300, 540), "graph_strip.png")
+    crop("airflow_graph.png", (1338, 60, 1870, 940), "graph_panel.png")
+    crop("airflow_runs.png", (90, 120, 715, 630), "runs_grid.png")
+    head = Image.open(SHOTS / "airflow_gate_log.png").convert("RGB").crop((720, 60, 1870, 180))
+    logs = Image.open(SHOTS / "airflow_gate_log.png").convert("RGB").crop((735, 700, 1850, 925))
+    comp = Image.new("RGB", (max(head.width, logs.width), head.height + logs.height + 6), (20, 24, 38))
+    comp.paste(head, (0, 0))
+    comp.paste(logs, (0, head.height + 6))
+    comp.save(out / "gate_log.png")
+
+
 def figure(name, caption, width=15.4 * cm):
     counters["fig"] += 1
     path = FIG / name
@@ -186,7 +206,7 @@ def figure_from(path, caption, width):
     return KeepTogether([img, Paragraph(f"Figure {counters['fig']}: {escape(caption)}", S["figcap"])])
 
 
-def table(caption, header, rows, widths, mono_cols=()):
+def table(caption, header, rows, widths, mono_cols=(), keep=True):
     counters["tab"] += 1
     data = [[Paragraph(escape(h), S["cellh"]) for h in header]]
     for r in rows:
@@ -204,7 +224,8 @@ def table(caption, header, rows, widths, mono_cols=()):
         ("TOPPADDING", (0, 0), (-1, -1), 3.5), ("BOTTOMPADDING", (0, 0), (-1, -1), 3.5),
         ("LEFTPADDING", (0, 0), (-1, -1), 5), ("RIGHTPADDING", (0, 0), (-1, -1), 5),
     ]))
-    return [Paragraph(f"Table {counters['tab']}: {escape(caption)}", S["tabcap"]), t, Spacer(1, 8)]
+    cap_style = S["tabcap"] if keep else ParagraphStyle("TableCaption", parent=S["tabcap"], keepWithNext=0)
+    return [Paragraph(f"Table {counters['tab']}: {escape(caption)}", cap_style), t, Spacer(1, 8)]
 
 
 def source(path, start=None, end=None):
@@ -237,6 +258,7 @@ def facts():
 
 
 def build():
+    prepare_shots()
     F = facts()
     money = lambda v: f"-${-v:,.0f}" if v < 0 else f"${v:,.0f}"
     W = 16.6 * cm
@@ -580,16 +602,16 @@ python -m pytest
     st, loaded, rejected, secs = F["run"]
     s += [P(f"The most recent logged run has status <b>{st}</b>, loaded {loaded:,} rows, rejected {rejected} and took about {secs:.0f} seconds. "
             "The following screenshots come from the running system.")]
-    s += [screenshot("airflow_graph.png", "Airflow graph view of the DAG with all tasks successful",
-                     "Airflow UI, DAGs, superstore_pipeline, Graph view of a successful run.")]
-    s += [screenshot("airflow_runs.png", "Airflow run history with successful and failed runs",
-                     "Airflow UI, superstore_pipeline, Runs tab.")]
-    s += [screenshot("airflow_gate_log.png", "Log of the test_silver quality gate",
-                     "Airflow UI, open task test_silver, Logs tab (shows the reject-rate line).")]
-    s += [screenshot("docker_containers.png", "The five containers of the stack in Docker Desktop",
-                     "Docker Desktop, Containers.")]
-    s += [screenshot("dbt_lineage.png", "dbt lineage graph from the generated documentation",
-                     "dbt docs, lineage graph (optional).")]
+    s += [figure_from(SHOTS / "cropped" / "graph_strip.png",
+                      "Airflow graph view: all ten tasks of a manual run finished successfully", 16.4 * cm)]
+    s += [figure_from(SHOTS / "cropped" / "graph_panel.png",
+                      "Run details: status Success, duration 46 seconds, and the state of each task", 7.6 * cm)]
+    s += [figure_from(SHOTS / "cropped" / "runs_grid.png",
+                      "Run history grid. The red runs and the task ids ending in __1, __2, ... come from defects 1 and 2 before they were fixed", 10.5 * cm)]
+    s += [figure_from(SHOTS / "cropped" / "gate_log.png",
+                      "Log of the test_silver quality gate: all dbt tests pass, then the reject-rate check reports 0 rejected of 9,994 rows", 16.0 * cm)]
+    s += [figure_from(SHOTS / "docker_containers.png",
+                      "The containers of the stack in Docker Desktop (airflow-init has finished, as designed)", 16.0 * cm)]
 
     # ---------------- 10 issues ----------------
     s += [CondPageBreak(8 * cm), H1("10. Issues Found and Fixed")]
@@ -612,7 +634,7 @@ python -m pytest
          "Watching the test fail before the fix.", "Use a different text value (TBD) so the test fails for the right reason."],
         ["8", "RFM segment counts changed between two runs on identical data, because quartile scoring (ntile) gave tied customers an arbitrary order.",
          "Comparing two runs while preparing this document.", "Add customer_key as a tie-breaker to all three scores. Unit test rfm_scores_break_ties_by_customer_key."],
-    ], [0.7 * cm, 5.4 * cm, 3.6 * cm, 6.9 * cm])
+    ], [0.7 * cm, 5.4 * cm, 3.6 * cm, 6.9 * cm], keep=False)
     s += [H2("Known limitations")]
     s += bullets([
         "Gold dimensions read the current silver tables, not the snapshots, so the SCD2 history is stored but not yet used by reports.",
