@@ -1,0 +1,18 @@
+unit_tests:
+  - name: silver_checked_flags_bad_rows
+    model: silver_checked
+    given:
+      - input: source('bronze', 'raw_superstore')
+        rows:
+          - {row_id: 1, order_id: A1, order_date: '2016-11-08', ship_date: '2016-11-11', customer_id: C1, product_id: P1, sales: 10, discount: 0.1}
+          - {row_id: 2, order_id: A2, order_date: '2016-11-08', ship_date: '2016-11-11', customer_id: C1, product_id: P1, sales: 0, discount: 0.1}
+          - {row_id: 3, order_id: A3, order_date: '2016-11-08', ship_date: '2016-11-01', customer_id: C1, product_id: P1, sales: 10, discount: 0.1}
+          - {row_id: 4, order_id: A4, order_date: '2016-11-08', ship_date: '2016-11-11', customer_id: C1, product_id: P1, sales: 10, discount: 1.5}
+          - {row_id: 5, order_id: A5, order_date: '2016-11-08', ship_date: '2016-11-11', customer_id: null, product_id: P1, sales: 10, discount: 0.1}
+    expect:
+      rows:
+        - {row_id: 1, reject_reason: null}
+        - {row_id: 2, reject_reason: non-positive sales}
+        - {row_id: 3, reject_reason: ship date before order date}
+        - {row_id: 4, reject_reason: discount out of range}
+        - {row_id: 5, reject_reason: missing key}
