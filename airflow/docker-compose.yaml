@@ -1,0 +1,71 @@
+x-airflow-common: &airflow-common
+  build: .
+  image: superstore-airflow:latest
+  environment:
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: "true"
+    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-apiserver:8080/execution/
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    # local-only secrets, change them if this ever leaves your machine
+    AIRFLOW__API_AUTH__JWT_SECRET: superstore-local-jwt-secret
+    AIRFLOW__API__SECRET_KEY: superstore-local-api-secret
+    PROJECT_DIR: /opt/airflow/project
+    SUPERSTORE_DB: /opt/airflow/project/warehouse/superstore.duckdb
+    SUPERSTORE_FILE: /opt/airflow/project/data/raw/Superstore.xlsx
+    DBT_PROJECT_DIR: /opt/airflow/project/dbt_project
+    DBT_PROFILES_DIR: /opt/airflow/project/dbt_project
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ../scripts:/opt/airflow/project/scripts
+    - ../dbt_project:/opt/airflow/project/dbt_project
+    - ../data:/opt/airflow/project/data
+    - ../warehouse:/opt/airflow/project/warehouse
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 5s
+      retries: 10
+
+  airflow-init:
+    <<: *airflow-common
+    entrypoint: /bin/bash
+    command: -c "airflow db migrate"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  airflow-apiserver:
+    <<: *airflow-common
+    command: api-server
+    ports:
+      - "8080:8080"
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-dag-processor:
+    <<: *airflow-common
+    command: dag-processor
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+volumes:
+  postgres-data:
