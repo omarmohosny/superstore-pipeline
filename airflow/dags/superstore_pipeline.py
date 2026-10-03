@@ -11,7 +11,10 @@ TASK_ENV = {
     "REJECT_THRESHOLD": "{{ var.value.get('reject_rate_threshold', '0.02') }}",
 }
 
-shell = task.bash(env=TASK_ENV, append_env=True)
+
+def shell():
+    # a fresh decorator per task, so every task keeps its own task_id
+    return task.bash(env=TASK_ENV, append_env=True)
 
 
 def log_failure(context):
@@ -46,34 +49,34 @@ def log_failure(context):
 )
 def superstore_pipeline():
 
-    @shell
+    @shell()
     def check_source_file():
         return 'test -f "$SUPERSTORE_FILE" || { echo "source file missing: $SUPERSTORE_FILE"; exit 1; }'
 
-    @shell
+    @shell()
     def dbt_debug():
         return "$PIPELINE_BIN/dbt debug"
 
-    @shell
+    @shell()
     def load_bronze():
         return (
             "$PIPELINE_BIN/python $PROJECT_DIR/scripts/load_bronze.py "
             '--file "$SUPERSTORE_FILE" --db "$SUPERSTORE_DB" --batch-id "$BATCH_ID"'
         )
 
-    @shell
+    @shell()
     def test_bronze():
-        return "$PIPELINE_BIN/dbt test --select source:bronze"
+        return "$PIPELINE_BIN/dbt test --select source:bronze --indirect-selection cautious"
 
-    @shell
+    @shell()
     def build_silver():
         return "$PIPELINE_BIN/dbt run --select silver"
 
-    @shell
+    @shell()
     def snapshot():
         return "$PIPELINE_BIN/dbt snapshot"
 
-    @shell
+    @shell()
     def test_silver():
         # gate: dbt tests first, then the reject-rate limit
         return (
@@ -82,18 +85,18 @@ def superstore_pipeline():
             ' --db "$SUPERSTORE_DB" --threshold "$REJECT_THRESHOLD"'
         )
 
-    @shell
+    @shell()
     def build_gold():
         return "$PIPELINE_BIN/dbt run --select gold marts"
 
-    @shell
+    @shell()
     def test_gold():
         return (
             "$PIPELINE_BIN/dbt test --select gold marts tag:reconciliation --indirect-selection cautious"
             " && $PIPELINE_BIN/dbt docs generate"
         )
 
-    @shell
+    @shell()
     def log_run():
         return (
             "$PIPELINE_BIN/python $PROJECT_DIR/scripts/pipeline_ops.py log "
