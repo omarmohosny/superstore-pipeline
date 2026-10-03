@@ -1,0 +1,21 @@
+name: superstore
+version: "1.0.0"
+config-version: 2
+profile: superstore
+
+model-paths: ["models"]
+test-paths: ["tests"]
+snapshot-paths: ["snapshots"]
+macro-paths: ["macros"]
+
+models:
+  superstore:
+    silver:
+      +schema: silver
+      +materialized: table
+    gold:
+      +schema: gold
+      +materialized: table
+    marts:
+      +schema: marts
+      +materialized: table
